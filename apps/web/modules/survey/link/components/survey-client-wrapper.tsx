@@ -163,11 +163,11 @@ export const SurveyClientWrapper = ({
 
   // Include verified email in hidden fields if available
   const getVerifiedEmail = useMemo<Record<string, string> | null>(() => {
-    if (survey.isVerifyEmailEnabled && verifiedEmail) {
+    if (survey.isVerifyEmailEnabled && verifiedEmail && !isPreview) {
       return { verifiedEmail: verifiedEmail };
     }
     return null;
-  }, [survey.isVerifyEmailEnabled, verifiedEmail]);
+  }, [survey.isVerifyEmailEnabled, verifiedEmail, isPreview]);
 
   // Position label for the card the respondent is on, reported by the survey renderer and already
   // localized in the survey's active language (see SurveyBaseProps.onPageChange).

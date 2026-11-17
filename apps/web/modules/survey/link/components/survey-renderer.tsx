@@ -124,42 +124,21 @@ export const renderSurvey = async ({
     return <SurveyCompletedMessage singleUseMessage={survey.singleUse} workspace={workspace} />;
   }
 
-  // Handle email verification flow if enabled
-  let emailVerificationStatus = "";
-  let verifiedEmail: string | undefined = undefined;
+  // Handle email verification flow if enabled (bypassed in preview mode)
+  const { screen: emailVerificationScreen, verifiedEmail } = await renderEmailVerificationGate({
+    survey,
+    publicSurvey,
+    searchParams,
+    isPreview,
+    workspace,
+    languageCode,
+    gateLocale,
+    linkSuId,
+    linkSuToken,
+  });
 
-  if (survey.isVerifyEmailEnabled) {
-    const token = searchParams.verify;
-
-    if (token) {
-      const emailVerificationDetails = await getEmailVerificationDetails(survey.id, token);
-      emailVerificationStatus = emailVerificationDetails.status;
-      verifiedEmail = emailVerificationDetails.email;
-    }
-  }
-
-  if (survey.isVerifyEmailEnabled && emailVerificationStatus !== "verified" && !isPreview) {
-    if (emailVerificationStatus === "fishy") {
-      return (
-        <VerifyEmail
-          survey={publicSurvey}
-          isErrorComponent={true}
-          languageCode={languageCode}
-          styling={workspace.styling}
-          locale={gateLocale}
-        />
-      );
-    }
-    return (
-      <VerifyEmail
-        singleUseId={linkSuId ?? ""}
-        singleUseToken={linkSuToken}
-        survey={publicSurvey}
-        languageCode={languageCode}
-        styling={workspace.styling}
-        locale={gateLocale}
-      />
-    );
+  if (emailVerificationScreen) {
+    return emailVerificationScreen;
   }
 
   // Compute final styling based on workspace and survey settings
@@ -284,4 +263,77 @@ function computeStyling(
     return workspaceStyling;
   }
   return surveyStyling?.overwriteThemeStyling ? surveyStyling : workspaceStyling;
+}
+
+interface EmailVerificationGateParams {
+  survey: TLinkSurvey;
+  publicSurvey: TSurvey;
+  searchParams: TLinkSurveySearchParams;
+  isPreview: boolean;
+  workspace: TWorkspaceContextForLinkSurvey["workspace"];
+  languageCode: string;
+  gateLocale: TUserLocale;
+  linkSuId?: string;
+  linkSuToken?: string;
+}
+
+/**
+ * Handles email verification gate rendering.
+ * In preview mode (`isPreview === true`), email verification is completely bypassed.
+ */
+async function renderEmailVerificationGate({
+  survey,
+  publicSurvey,
+  searchParams,
+  isPreview,
+  workspace,
+  languageCode,
+  gateLocale,
+  linkSuId,
+  linkSuToken,
+}: EmailVerificationGateParams): Promise<{ screen?: React.JSX.Element; verifiedEmail?: string }> {
+  if (!survey.isVerifyEmailEnabled || isPreview) {
+    return {};
+  }
+
+  let emailVerificationStatus = "";
+  let verifiedEmail: string | undefined = undefined;
+
+  const token = searchParams.verify;
+  if (token) {
+    const emailVerificationDetails = await getEmailVerificationDetails(survey.id, token);
+    emailVerificationStatus = emailVerificationDetails.status;
+    verifiedEmail = emailVerificationDetails.email;
+  }
+
+  if (emailVerificationStatus === "verified") {
+    return { verifiedEmail };
+  }
+
+  if (emailVerificationStatus === "fishy") {
+    return {
+      screen: (
+        <VerifyEmail
+          survey={publicSurvey}
+          isErrorComponent={true}
+          languageCode={languageCode}
+          styling={workspace.styling}
+          locale={gateLocale}
+        />
+      ),
+    };
+  }
+
+  return {
+    screen: (
+      <VerifyEmail
+        singleUseId={linkSuId ?? ""}
+        singleUseToken={linkSuToken}
+        survey={publicSurvey}
+        languageCode={languageCode}
+        styling={workspace.styling}
+        locale={gateLocale}
+      />
+    ),
+  };
 }
